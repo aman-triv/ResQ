@@ -36,5 +36,12 @@ LifeGrid is an offline-capable AI emergency rescue assistant designed to functio
 ## 💻 How to Run Locally
 
 1. **Install Dependencies:**
-   ```bash
    pip install openai-whisper torch
+
+2. **Run Ollama Local Server:**
+   Ensure Ollama is installed and running `llama3.2`.
+
+3. **Execute Test Modules:**
+   - NLP Triage: `python test_nlp.py`
+   - Speech Transcription: `python test_whisper.py`
+   - First-Aid Guidance: `python test_firstaid.py`
