@@ -1,3 +1,4 @@
+# Phase 1: Local LLM Setup & SOS Text Parsing
 import ollama
 import json
 
