@@ -56,3 +56,7 @@ LifeGrid is an offline-capable AI emergency rescue assistant designed to functio
    - Speech Transcription: `python test_whisper.py`
    - First-Aid Guidance: `python test_firstaid.py`
    - VRP Route Engine: `python test_vrp.py`
+### **Phase 4: Optimization & Unified AI Pipeline**
+- **Optimized Latency:** Reduced LLM response latency to sub-2 seconds using quantized models (`llama3.2:1b`) and memory pinning (`keep_alive`).
+- **Consolidated Pipeline:** Created `ai_pipeline.py` combining Text Parsing, Speech Transcription, First-Aid Generation, and OR-Tools VRP Solver into single production-ready functions.
+- **File:** `ai_pipeline.py`   
