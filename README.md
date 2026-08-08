@@ -1,6 +1,6 @@
-# 🚨 LifeGrid - Offline Emergency Triage & AI First-Aid System
+# 🚨 ResQ - Offline Emergency Triage & AI First-Aid System
 
-LifeGrid is an offline-capable AI emergency rescue assistant designed to function during network outages, natural disasters, or critical situations. It processes incoming SOS text messages and voice notes locally to categorize urgency, provide real-time first-aid guidance, and generate priority-weighted rescue paths.
+ResQ is an offline-capable AI emergency rescue assistant designed to function during network outages, natural disasters, or critical situations. It processes incoming SOS text messages and voice notes locally to categorize urgency, provide real-time first-aid guidance, and generate priority-weighted rescue paths.
 
 ---
 
