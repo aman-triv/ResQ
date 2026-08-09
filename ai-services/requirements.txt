@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+openai-whisper
+ortools
+ultralytics
+opencv-python-headless
+requests
