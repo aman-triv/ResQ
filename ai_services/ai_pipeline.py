@@ -76,13 +76,23 @@ def calculate_optimal_route(locations: list, urgency_scores: list, distance_matr
         route.append({"location": locations[manager.IndexToNode(idx)], "urgency": 0})
     return route
 
-# Quick self-test script
+def process_sos_pipeline(text: str = "", image_path: str = None, location: tuple = None):
+    """Orchestrates text parsing and returns consolidated AI results."""
+    parsed_result = {}
+    if text:
+        try:
+            raw_res = parse_sos_text(text)
+            parsed_result = json.loads(raw_res) if isinstance(raw_res, str) else raw_res
+        except Exception:
+            parsed_result = {"urgency_score": 5, "category": "Human", "is_medical": False}
+
+    return {
+        "urgency_score": parsed_result.get("urgency_score", 5),
+        "is_animal": True if parsed_result.get("category") == "Animal" else False,
+        "is_duplicate": False
+    }
+
+# 👉 Test script sabse niche rahegi
 if __name__ == "__main__":
     print("🚀 Testing Consolidated AI Pipeline Module...")
-    t0 = time.time()
-    
-    # NLP Test
-    res = parse_sos_text("Severe building collapse in Sector 4, 3 people trapped under debris.")
-    print("\n1. Parsing Response:\n", res)
-    
-    print(f"\n⚡ Total Pipeline Execution Time: {time.time() - t0:.2f}s")
+    # ... test code ...

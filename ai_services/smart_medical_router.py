@@ -97,3 +97,37 @@ if __name__ == "__main__":
         needs_burn_unit=True
     )
     print("Matched Hospital for Critical Burn Victim:", matched_hosp)
+    
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# Input data ka structure define karne ke liye Pydantic model
+class VictimRequest(BaseModel):
+    victim_lat: float
+    victim_lng: float
+    is_animal: bool = False
+    needs_icu: bool = False
+    needs_burn_unit: bool = False
+
+@app.post("/match-hospital")
+def match_hospital_endpoint(data: VictimRequest):
+    matched_facility = match_victim_to_capable_facility(
+        victim_lat=data.victim_lat,
+        victim_lng=data.victim_lng,
+        is_animal=data.is_animal,
+        needs_icu=data.needs_icu,
+        needs_burn_unit=data.needs_burn_unit
+    )
+    
+    if matched_facility:
+        return {
+            "status": "success",
+            "matched_facility": matched_facility
+        }
+    else:
+        return {
+            "status": "not_found",
+            "message": "No matching facility found for the given requirements."
+        }

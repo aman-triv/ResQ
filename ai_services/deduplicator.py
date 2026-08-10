@@ -1,4 +1,4 @@
-from hospital_router import calculate_haversine_distance
+from ai_services.hospital_router import calculate_haversine_distance
 
 def is_duplicate_incident(new_lat, new_lng, existing_incidents, threshold_meters=100):
     """
