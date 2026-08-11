@@ -7,7 +7,7 @@ from ortools.constraint_solver import pywrapcp
 
 # Preload fast models into RAM
 whisper_model = whisper.load_model("tiny")
-FAST_LLM = "llama3.2:1b"
+FAST_LLM = "llama3.2"
 
 def parse_sos_text(sos_text: str):
     """Processes incoming raw text and returns structured JSON."""
