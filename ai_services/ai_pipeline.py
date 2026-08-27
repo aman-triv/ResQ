@@ -96,3 +96,52 @@ def process_sos_pipeline(text: str = "", image_path: str = None, location: tuple
 if __name__ == "__main__":
     print("🚀 Testing Consolidated AI Pipeline Module...")
     # ... test code ...
+def create_unified_profile(
+    lat: float,
+    lng: float,
+    text: str = "",
+    transcript: str = "",
+    image_analysis: dict = None
+) -> dict:
+    """
+    Text, Audio, Image aur GPS coordinates ko merge karke single unified report profile banata hai.
+    """
+    combined_text = f"{text} {transcript}".strip()
+    
+    # 1. Text / NLP Analysis
+    sos_data = parse_sos_text(combined_text) if combined_text else {}
+    
+    urgency_from_text = sos_data.get("urgency_score", 5)
+    is_animal = sos_data.get("is_animal", False)
+    tags = sos_data.get("tags", [])
+
+    # 2. Image Analysis Merge
+    urgency_from_image = 5
+    detected_objects = []
+    if image_analysis:
+        urgency_from_image = image_analysis.get("urgency_score", 5)
+        detected_objects = image_analysis.get("detected_objects", [])
+
+    # 3. Final Highest Urgency Score
+    final_urgency = max(urgency_from_text, urgency_from_image)
+
+    # 4. Automatic First Aid Guidance
+    first_aid_steps = []
+    if final_urgency >= 7:
+        first_aid_steps = generate_first_aid(combined_text or "Emergency situation")
+
+    return {
+        "unified_incident": {
+            "location": {"latitude": lat, "longitude": lng},
+            "final_urgency_score": final_urgency,
+            "is_animal_involved": is_animal,
+            "tags": list(set(tags + detected_objects)),
+            "media_summary": {
+                "user_text": text,
+                "audio_transcript": transcript,
+                "detected_visual_elements": detected_objects
+            },
+            "recommended_first_aid": first_aid_steps,
+            "status": "UNIFIED_VERIFIED"
+        }
+    }

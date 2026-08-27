@@ -1,22 +1,31 @@
-from fastapi import FastAPI, BackgroundTasks, UploadFile, File, HTTPException
-from pydantic import BaseModel
-import sqlite3
-from ai_services import deduplicator
 import os
-import tempfile
 import shutil
-from ai_services.vision_engine import process_disaster_image
-from ai_services.cluster_engine import cluster_incoming_incidents
+import sqlite3
+import tempfile
 from typing import List, Optional
-from ai_services.ai_pipeline import (
-    parse_sos_text,
-    transcribe_audio,
-    generate_first_aid,
-    calculate_optimal_route,
-    process_sos_pipeline,
-)
 
-app = FastAPI(title="LifeGrid AI Services API")
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from pydantic import BaseModel
+
+# Imports from ai_services
+from ai_services import deduplicator
+from ai_services.ai_pipeline import (
+    calculate_optimal_route,
+    generate_first_aid,
+    parse_sos_text,
+    process_sos_pipeline,
+    transcribe_audio,
+)
+from ai_services.cluster_engine import cluster_incoming_incidents
+from ai_services.deduplicator import smart_deduplicate_incidents
+from ai_services.hospital_router import build_geojson_route
+from ai_services.vision_engine import process_disaster_image
+from ai_services.auto_allocator import auto_allocate_rescue_teams
+from fastapi import Form
+from ai_services.ai_pipeline import create_unified_profile
+
+app = FastAPI(title="ResQ AI Services API")
+
 
 # Request Models
 class IncidentItem(BaseModel):
@@ -40,6 +49,15 @@ class RouteRequest(BaseModel):
     locations: List[str]
     urgency_scores: List[int]
     distance_matrix: List[List[int]]
+
+class GeoRouteRequest(BaseModel):
+    waypoints: List[List[float]]  # Example: [[28.6139, 77.2090], [28.6150, 77.2050]]
+
+
+# Root Healthcheck Endpoint
+@app.get("/")
+def home():
+    return {"status": "success", "message": "LifeGrid AI API is running!"}
 
 
 # 1. Text NLP Analysis
@@ -136,7 +154,23 @@ def optimize_route_endpoint(data: RouteRequest):
         return {"status": "error", "message": str(e)}
 
 
-# 7. Real Background Worker Logic
+# 7. GeoJSON Route Endpoint (Zomato-style map visualization)
+@app.post("/ai/generate-route-geojson")
+def generate_route_geojson_endpoint(data: GeoRouteRequest):
+    try:
+        if len(data.waypoints) < 2:
+            raise HTTPException(status_code=400, detail="Kam se kam 2 waypoints chahiye route generate karne ke liye.")
+        
+        geojson_data = build_geojson_route(data.waypoints)
+        return {
+            "status": "success",
+            "geojson": geojson_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 8. Real Background Worker Logic
 def real_ai_background_processing(incident_data: dict):
     incident_id = incident_data.get("id")
     description = incident_data.get("text") or incident_data.get("description", "")
@@ -187,7 +221,7 @@ def real_ai_background_processing(incident_data: dict):
         print(f"❌ DB / Processing Error: {e}")
 
 
-# 8. Async SOS Trigger Endpoint
+# 9. Async SOS Trigger Endpoint
 @app.post("/ai/process-sos-async")
 def process_sos_async(data: IncidentItem, background_tasks: BackgroundTasks):
     background_tasks.add_task(real_ai_background_processing, data.dict())
@@ -196,3 +230,109 @@ def process_sos_async(data: IncidentItem, background_tasks: BackgroundTasks):
         "status": "success",
         "message": "SOS received. Real AI processing, DBSCAN deduplication, and DB update queued in background."
     }
+
+
+# 10. Smart Deduplication Endpoint
+@app.post("/ai/smart-deduplicate")
+def smart_deduplicate_endpoint(data: ClusterRequest):
+    try:
+        incidents_list = [inc.dict() for inc in data.incidents]
+        grouped_tickets = smart_deduplicate_incidents(
+            incidents=incidents_list, 
+            max_distance_m=data.max_distance_meters or 200.0
+        )
+        return {
+            "status": "success",
+            "total_tickets": len(grouped_tickets),
+            "tickets": grouped_tickets
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    # --- Pydantic Models ---
+class RescueTeamItem(BaseModel):
+    id: str
+    name: Optional[str] = "Rescue Team"
+    latitude: float
+    longitude: float
+    vehicle_type: Optional[str] = "ambulance"
+    is_available: Optional[bool] = True
+
+class TicketAssignItem(BaseModel):
+    id: str
+    latitude: float
+    longitude: float
+    urgency_score: Optional[int] = 5
+    required_vehicle: Optional[str] = "ambulance"
+
+class AutoAssignRequest(BaseModel):
+    tickets: List[TicketAssignItem]
+    rescue_teams: List[RescueTeamItem]
+
+
+# --- Auto Allotment Endpoint ---
+@app.post("/ai/auto-assign")
+def auto_assign_endpoint(data: AutoAssignRequest):
+    try:
+        tickets_list = [t.dict() for t in data.tickets]
+        # Sirf available teams filter kar rahe hain
+        teams_list = [team.dict() for team in data.rescue_teams if team.is_available]
+
+        if not teams_list:
+            raise HTTPException(status_code=400, detail="Koi available rescue team nahi milli.")
+
+        matched_assignments = auto_allocate_rescue_teams(tickets_list, teams_list)
+        return {
+            "status": "success",
+            "total_assigned": len(matched_assignments),
+            "assignments": matched_assignments
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+# --- Multi-Modal Unified Profile Endpoint ---
+@app.post("/ai/unified-profile")
+async def unified_profile_endpoint(
+    latitude: float = Form(...),
+    longitude: float = Form(...),
+    text: Optional[str] = Form(""),
+    audio_file: Optional[UploadFile] = File(None),
+    image_file: Optional[UploadFile] = File(None)
+):
+    try:
+        temp_dir = tempfile.gettempdir()
+        transcript = ""
+        image_result = None
+
+        # 1. Process Audio if uploaded
+        if audio_file:
+            audio_path = os.path.join(temp_dir, audio_file.filename)
+            with open(audio_path, "wb") as buffer:
+                shutil.copyfileobj(audio_file.file, buffer)
+            transcript = transcribe_audio(audio_path)
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+
+        # 2. Process Image if uploaded
+        if image_file:
+            image_path = os.path.join(temp_dir, image_file.filename)
+            with open(image_path, "wb") as buffer:
+                shutil.copyfileobj(image_file.file, buffer)
+            image_result = process_disaster_image(image_path)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+
+        # 3. Create Unified Profile
+        profile = create_unified_profile(
+            lat=latitude,
+            lng=longitude,
+            text=text or "",
+            transcript=transcript,
+            image_analysis=image_result
+        )
+
+        return {
+            "status": "success",
+            "data": profile
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
