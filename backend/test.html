@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head><title>WebSocket Test</title></head>
+<body>
+    <h2>Live Tracking WS Test</h2>
+    <button onclick="connect()">Connect & Send</button>
+    <div id="output"></div>
+
+    <script>
+        function connect() {
+            const ws = new WebSocket("ws://127.0.0.1:8000/ws/live-tracking");
+            ws.onopen = function() {
+                document.getElementById("output").innerHTML += "<p style='color:green;'>Connected!</p>";
+                ws.send(JSON.stringify({ team_id: 1, status: "Moving" }));
+            };
+            ws.onmessage = function(event) {
+                document.getElementById("output").innerHTML += "<p>Server: " + event.data + "</p>";
+            };
+            ws.onerror = function(err) {
+                document.getElementById("output").innerHTML += "<p style='color:red;'>Error occurred</p>";
+            };
+        }
+    </script>
+</body>
+</html>
