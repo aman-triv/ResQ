@@ -259,3 +259,72 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         await manager.broadcast("A rescue unit disconnected from live tracking.")
+
+        from pydantic import BaseModel
+import json
+
+# Request body define karne ke liye
+class StatusUpdate(BaseModel):
+    status: str
+
+@app.put("/api/rescue-team/{team_id}/status")
+async def update_team_status(team_id: int, payload: StatusUpdate):
+    # 1. Socket message banaya JSON format mein
+    status_message = json.dumps({
+        "event": "status_updated",
+        "team_id": team_id,
+        "new_status": payload.status
+    })
+
+    # 2. Tere existing manager se sabhi connected clients ko broadcast kar diya
+    try:
+        await manager.broadcast(status_message)
+    except Exception as e:
+        print(f"Socket emit failed: {e}")
+
+    # 3. Success response (Agar DB setup ho toh yahan DB update query aayegi)
+    return {
+        "status": "success", 
+        "message": f"Team {team_id} status changed to {payload.status}"
+    }
+
+from fastapi import WebSocket
+from typing import Dict, List
+
+# 1. Chat Rooms ke liye alag se Manager
+class ChatRoomManager:
+    def __init__(self):
+        self.active_connections: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, room_id: str, websocket: WebSocket):
+        await websocket.accept()
+        if room_id not in self.active_connections:
+            self.active_connections[room_id] = []
+        self.active_connections[room_id].append(websocket)
+
+    def disconnect(self, room_id: str, websocket: WebSocket):
+        if room_id in self.active_connections:
+            self.active_connections[room_id].remove(websocket)
+            if not self.active_connections[room_id]:
+                del self.active_connections[room_id]
+
+    async def broadcast_to_room(self, room_id: str, message: str):
+        if room_id in self.active_connections:
+            for connection in self.active_connections[room_id]:
+                await connection.send_text(message)
+
+chat_manager = ChatRoomManager()
+
+# 2. Chat WebSocket Endpoint with Rooms
+@app.websocket("/ws/chat/{room_id}")
+async def chat_websocket_endpoint(websocket: WebSocket, room_id: str):
+    await chat_manager.connect(room_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Usi room ke baaki sabhi users ko message bhej do
+            await chat_manager.broadcast_to_room(room_id, data)
+    except Exception:
+        chat_manager.disconnect(room_id, websocket)
+        await chat_manager.broadcast_to_room(room_id, f"A user disconnected from room {room_id}")
+        
