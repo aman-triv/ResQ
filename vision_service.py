@@ -103,17 +103,35 @@ def analyze_and_annotate_image(image_path: str):
         save_path = os.path.join(STATIC_DIR, file_id)
         cv2.imwrite(save_path, img)
 
-        # Final JSON Layout matching specs
+        # Step 1: Smart Hospital Mapping - Dropdown List for Rescue Team
+        recommended_hospitals = [
+            {"id": 1, "name": "City General Hospital", "distance_km": 1.2, "specialty": "Trauma & Burn"},
+            {"id": 2, "name": "Apex Emergency Care", "distance_km": 3.5, "specialty": "General Rescue"},
+            {"id": 3, "name": "Green Valley Vet Clinic", "distance_km": 2.1, "specialty": "Animal Care"}
+        ]
+
+        # Step 2: Mocking Person 3 (Text AI) Output for integration
+        person_3_text_data = {
+            "distress_message": "Need urgent help, trapped here!",
+            "extracted_needs": ["Medical Assistance", "Evacuation"],
+            "is_critical_message": True
+        }
+
+        # Step 2: Combined JSON for "Victim Profile Card"
         return {
-            "detected_threats": list(set(detected_threats)) if detected_threats else ["Clear"],
-            "confidence": round(max_confidence * 100, 1),
-            "severity_level": severity_level,
-            "pin_color": pin_color,
-            "annotated_image_url": f"/static/annotated/{file_id}",
-            "bounding_boxes": bounding_boxes,
-            "extra_data": {
-                "category": "animal" if (has_animal and not has_human) else "human",
-                "fire_intensity_percent": round(fire_ratio, 2)
+            "victim_profile_card": {
+                "vision_data": {
+                    "detected_threats": list(set(detected_threats)) if detected_threats else ["Clear"],
+                    "confidence": round(max_confidence * 100, 1),
+                    "severity_level": severity_level,
+                    "pin_color": pin_color,
+                    "annotated_image_url": f"/static/annotated/{file_id}",
+                    "bounding_boxes": bounding_boxes,
+                    "animal_tag": has_animal,
+                    "fire_intensity_percent": round(fire_ratio, 2)
+                },
+                "text_data": person_3_text_data,
+                "recommended_hospitals": recommended_hospitals
             }
         }
     except Exception as e:
@@ -127,7 +145,7 @@ async def analyze_image_endpoint(file: UploadFile = File(...)):
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        analysis_result = analyze_and_analyze_image_helper_alias if False else analyze_and_annotate_image(temp_path)
+        analysis_result = analyze_and_annotate_image(temp_path)
         
         if os.path.exists(temp_path):
             os.remove(temp_path)
