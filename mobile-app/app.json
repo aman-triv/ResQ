@@ -25,10 +25,16 @@
         "googleMaps": {
           "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
         }
-      }
+      },
+      "package": "com.anonymous.emergencyrescueapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "eee90936-73d2-4f3d-a20f-d594ec66d2dd"
+      }
     }
   }
 }
