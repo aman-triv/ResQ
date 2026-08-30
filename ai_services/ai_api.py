@@ -23,6 +23,8 @@ from ai_services.vision_engine import process_disaster_image
 from ai_services.auto_allocator import auto_allocate_rescue_teams
 from fastapi import Form
 from ai_services.ai_pipeline import create_unified_profile
+from ai_services.route_manager import set_active_route
+from ai_services.enroute_matcher import check_enroute_match
 
 app = FastAPI(title="ResQ AI Services API")
 
@@ -336,3 +338,22 @@ async def unified_profile_endpoint(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+# 1. API endpoint jab naya SOS aaye toh match check karne ke liye
+@app.post("/api/v1/check-enroute")
+async def check_enroute_sos(sos_data: dict):
+    """
+    Payload: {"lat": 28.6330, "lng": 77.2200}
+    """
+    lat = sos_data.get("lat")
+    lng = sos_data.get("lng")
+    
+    matches = check_enroute_match(lat, lng, max_distance_km=2.0)
+    
+    if matches:
+        return {
+            "status": "ENROUTE_MATCH_FOUND",
+            "alert": True,
+            "matched_teams": matches
+        }
+    
+    return {"status": "NO_ENROUTE_TEAM", "alert": False, "matched_teams": []}

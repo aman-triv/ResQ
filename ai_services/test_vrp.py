@@ -1,5 +1,6 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+from ai_services.route_manager import set_active_route
 
 def create_data_model():
     """Stores the data for the problem."""
@@ -35,7 +36,6 @@ def main():
     data = create_data_model()
     
     # 2. CREATE PRIORITY-WEIGHTED COST MATRIX (The Magic Algorithm)
-    # Reduce effective distance cost for high-urgency locations so the solver goes there first.
     weighted_matrix = []
     for i in range(len(data['distance_matrix'])):
         row = []
@@ -44,12 +44,8 @@ def main():
             urgency = data['urgency_scores'][j]
             
             if j == 0 or i == j:
-                # Returning to base or same location has no urgency modifier
                 cost = actual_distance
             else:
-                # Logic: Cost = Distance * (11 - Urgency)
-                # If urgency is 10, multiplier is 1 (Visits immediately)
-                # If urgency is 2, multiplier is 9 (Visits later)
                 cost = actual_distance * (11 - urgency)
             
             row.append(int(cost))
@@ -75,7 +71,7 @@ def main():
     # 6. Solve the VRP
     solution = routing.SolveWithParameters(search_parameters)
 
-    # 7. Print the Results
+    # 7. Print the Results & Register Active Route
     if solution:
         print("\n🚨 LifeGrid VRP Route Engine (Priority + Distance) 🚨")
         print("-" * 55)
@@ -84,10 +80,23 @@ def main():
         plan_output = 'Optimal Rescue Path:\n\n'
         route_distance = 0
         
+        # GPS coordinates mapping for locations in mock data
+        location_coords = [
+            (28.6139, 77.2090),  # 0: Rescue Base (HQ)
+            (28.6200, 77.2100),  # 1: Location A
+            (28.6250, 77.2150),  # 2: Location B
+            (28.6300, 77.2200),  # 3: Location C
+            (28.6350, 77.2250)   # 4: Location D
+        ]
+        optimized_path_coords = []
+        
         while not routing.IsEnd(index):
             node_index = manager.IndexToNode(index)
             loc_name = data['locations'][node_index]
             urgency = data['urgency_scores'][node_index]
+            
+            # Extract coordinates for routing manager
+            optimized_path_coords.append(location_coords[node_index])
             
             if node_index == 0:
                 plan_output += f" 🟢 {loc_name}\n"
@@ -96,11 +105,14 @@ def main():
             
             previous_index = index
             index = solution.Value(routing.NextVar(index))
-            # Calculate ACTUAL distance traveled, not the weighted one
             route_distance += data['distance_matrix'][manager.IndexToNode(previous_index)][manager.IndexToNode(index)]
             
         node_index = manager.IndexToNode(index)
+        optimized_path_coords.append(location_coords[node_index])
         plan_output += f"   ⬇️\n 🏁 {data['locations'][node_index]} (Return)\n"
+        
+        # Save route to active memory for en-route matching
+        set_active_route("TEAM_ALPHA", optimized_path_coords)
         
         print(plan_output)
         print("-" * 55)
