@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket
 from fastapi import File, UploadFile
 import shutil
 import os
 from worker import process_sos_task
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import math
 import sqlite3
 from datetime import datetime
@@ -327,4 +327,47 @@ async def chat_websocket_endpoint(websocket: WebSocket, room_id: str):
     except Exception:
         chat_manager.disconnect(room_id, websocket)
         await chat_manager.broadcast_to_room(room_id, f"A user disconnected from room {room_id}")
-        
+# ==========================================
+# PERSON 2 PENDING FEATURES (MODELS & ROUTES)
+# ==========================================
+
+class BackupRequest(BaseModel):
+    sos_id: str
+    unit_type: str
+    priority: Optional[str] = "HIGH"
+    notes: Optional[str] = "Immediate backup requested by Admin"
+
+class StatusUpdate(BaseModel):
+    rescue_team_id: str
+    sos_id: str
+    status: str
+
+# 1. Special Backup Request API
+@app.post("/api/admin/backup-request")
+async def special_backup_request(payload: BackupRequest):
+    return {
+        "success": True,
+        "message": f"Special {payload.unit_type} alert dispatched!",
+        "data": payload.model_dump()
+    }
+
+# 2. State-Machine API + Family Portal Webhook Trigger
+@app.post("/api/rescue/status")
+async def update_rescue_status(payload: StatusUpdate):
+    team_db_status = "Free" if payload.status.lower() == "finished" else "Busy"
+    return {
+        "success": True,
+        "message": f"Status updated to {payload.status}.",
+        "team_db_status": team_db_status
+    }
+
+# 3. Live Location Tracking WebSocket
+@app.websocket("/ws/tracking/{team_id}")
+async def location_websocket_endpoint(websocket: WebSocket, team_id: str):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await websocket.send_json({"team_id": team_id, "location": data})
+    except Exception:
+        await websocket.close()
